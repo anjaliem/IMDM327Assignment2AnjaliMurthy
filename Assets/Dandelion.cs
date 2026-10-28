@@ -16,12 +16,13 @@ public class Dandelion : MonoBehaviour{
 
     private float G = 1000f;              // gravitational constant - make it public and not const so we can adjust with slider
     BodyProperty[] bp;                  // list of all bodies
-    private int numberOfSpheres = 250;    // number of bodies
+    private int numberOfSpheres = 150;    // number of bodies
     class BodyProperty{                 // body object class
         public GameObject body;
         public float mass;
         public Vector3 velocity;
         public Vector3 acceleration;
+        public SpriteRenderer sp;
     }
     private float minimumDistance = 1f;  // control distance of Boids separation property
     private float separationForce = 10f; // control force of Boids separation property
@@ -30,6 +31,8 @@ public class Dandelion : MonoBehaviour{
     private float fasterTime = 1f;       // adjustable time multiplier
     private const float myMass = 2f;
     private float r; // can probs either adjust this value or move camera back (-z axis) based on framing
+
+    //public Sprite ds;
 
     void Start(){
         r = 0f;
@@ -53,7 +56,7 @@ public class Dandelion : MonoBehaviour{
 
             // trail
             TrailRenderer trailRenderer = bp[i].body.AddComponent<TrailRenderer>();
-            trailRenderer.time = 0.5f;         // Duration of the trail
+            trailRenderer.time = 1.5f;         // Duration of the trail
             trailRenderer.startWidth = 0.5f;    // Width of the trail at the start
             trailRenderer.endWidth = 0.1f;      // Width of the trail at the end
             trailRenderer.material = new Material(Shader.Find("Sprites/Default")); // a material to the trail
@@ -64,6 +67,12 @@ public class Dandelion : MonoBehaviour{
                 new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) }
             );
             trailRenderer.colorGradient = gradient;
+
+            Vector3 cS = bp[i].body.transform.localScale;
+            bp[i].body.transform.localScale = new Vector3 (cS.x + 0.5f, cS.y + 0.5f, cS.z + 0.5f);
+
+            //bp[i].sp = bp[i].body.AddComponent<SpriteRenderer>();
+            //bp[i].sp.sprite = ds;
         }
         StartMic();
         volume = 0f;
@@ -99,7 +108,7 @@ public class Dandelion : MonoBehaviour{
             }
         }
         for (int i = 0; i < numberOfSpheres; i++){
-            bp[i].acceleration *= volume;
+            bp[i].acceleration *= volume * 1.5f;
             bp[i].velocity += (bp[i].acceleration * Time.deltaTime * fasterTime) * this.volume;             //velocity
 
             Vector3 currPos = bp[i].body.transform.position;

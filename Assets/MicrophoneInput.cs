@@ -15,9 +15,9 @@ public class MicrophoneInput : MonoBehaviour {
     }
 
     void Update() {
-        volume = getVolume() * 500f;
-        Vector3 currScale = this.transform.localScale;
-        this.transform.localScale = new Vector3 (currScale.x, currScale.y * volume, currScale.z);
+        volume = getVolume();
+        //Vector3 currScale = this.transform.localScale;
+        //this.transform.localScale = new Vector3 (currScale.x, currScale.y * volume, currScale.z);
         // this.GameObject.transform.localScale = new Vector3(volume, volume, )
     }
 
