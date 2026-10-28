@@ -52,6 +52,7 @@
     <Compile Include="Assets\DataCSV.cs" />
     <Compile Include="Assets\default\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\SolarSystemStarter.cs" />
+    <Compile Include="Assets\DataJSON.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
