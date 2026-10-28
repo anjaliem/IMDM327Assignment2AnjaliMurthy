@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class SolarSystemStarter : MonoBehaviour {
     DataCSV solarCSV;
-    DataJSON solarJSON;
+    //DataJSON solarJSON;
     const float G = 6.674e-11f;
     PlanetProperty[] planetProperties;
     private int numberOfSpheres = 10;
@@ -19,7 +19,7 @@ public class SolarSystemStarter : MonoBehaviour {
         public Vector3 actualPosition;
     }
     public BodyProperty[] solarBodiesCSV;
-    public SolarBody[] solarBodiesJSON;
+    //public SolarBody[] solarBodiesJSON;
     float timeController = 1000000f;
     private Material[] planetMaterials; 
     private float[] sizeScales;
