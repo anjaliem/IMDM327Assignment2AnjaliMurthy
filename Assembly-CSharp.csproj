@@ -49,11 +49,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Dandelion.cs" />
-    <Compile Include="Assets\MicrophoneInput.cs" />
-    <Compile Include="Assets\CloudRotate2.cs" />
     <Compile Include="Assets\default\TutorialInfo\Scripts\Readme.cs" />
-    <Compile Include="Assets\CloudRotate.cs" />
-    <Compile Include="Assets\StemSway.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

@@ -1,126 +1,172 @@
 // IMDM 327 FALL 2026
 // Assignment 2 - Anjali Murthy
-// Starter code by instructor Myungin Lee
 
 using UnityEngine;
 using System.Linq;
 
 public class Dandelion : MonoBehaviour{
+
+    // for input volume
     private string device;
     private AudioClip clip;
     private const int sampleWindow = 1024;
     private float[] samples = new float[sampleWindow];
-    // private bool isInit;
-    public float volume;
-    private Vector3 volumeVector;
 
-    private float G = 1000f;              // gravitational constant - make it public and not const so we can adjust with slider
-    BodyProperty[] bp;                  // list of all bodies
-    private int numberOfSpheres = 150;    // number of bodies
-    class BodyProperty{                 // body object class
+    public float volume_raw;
+    [SerializeField] public float detectVol = 0.02f;
+
+    // for sound effect
+    private AudioSource audioSource;
+
+    // boids bodies
+    class Seed {
         public GameObject body;
         public float mass;
         public Vector3 velocity;
         public Vector3 acceleration;
-        public SpriteRenderer sp;
     }
-    private float minimumDistance = 1f;  // control distance of Boids separation property
-    private float separationForce = 10f; // control force of Boids separation property
-    // Boids - cohesion property
-    // Boids - alignment property
-    private float fasterTime = 1f;       // adjustable time multiplier
+    private float G = 1000f;
+    Seed[] seeds;
+    private int n = 100; // # of seeds
+    [SerializeField] public Material seedmat;
+    private Renderer objectRenderer;
+    
+    // boids - properties
+    private float minimumDistance = 1f; // boids separation - distance threshold
+    private float separationForce = 2f; // boids separation - force
     private const float myMass = 2f;
-    private float r; // can probs either adjust this value or move camera back (-z axis) based on framing
+    private const float radius = 20f;
 
-    //public Sprite ds;
+    // stem
+    private float minAngle = -10f;
+    private float maxAngle = 10f;
+    private float centerAngle = 0f;
+    private float swayspeed;
+    private float amplitude;
+    private float zRotation;
+    public GameObject stemObject;
 
-    void Start(){
-        r = 0f;
-        // create array for each body and its properties
-        bp = new BodyProperty[numberOfSpheres];
-        // assign initial conditions for each body in the array
-        for (int i = 0; i < numberOfSpheres; i++){
-            r = Random.Range(5f, 40f);
-            // create game object for each body
-            bp[i] = new BodyProperty();
-            bp[i].body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            // bp[i].body.transform.localScale = Vector3.one * 3f;
-            // position is (x,y,z), so plot bodies on a circle with r
-            // z = 180 places body in front of camera, near origin, looking along +z axis (try other positions too)
-            float theta = 2 * Mathf.PI / numberOfSpheres * i;
-            bp[i].body.transform.position = new Vector3(r * Mathf.Cos(theta) + Random.Range(-5f,5f),
-                                                        r * Mathf.Sin(theta) + Random.Range(-5f,5f) + 25,
-                                                        180f);
-            bp[i].velocity = Vector3.zero; // try different initial condition - for example bp[i].velocity = new Vector3(5f, Random.Range(), );
-            bp[i].mass = myMass;                // simplified - try different initial condition
+    // meter
+    public GameObject meter;
 
-            // trail
-            TrailRenderer trailRenderer = bp[i].body.AddComponent<TrailRenderer>();
-            trailRenderer.time = 1.5f;         // Duration of the trail
-            trailRenderer.startWidth = 0.5f;    // Width of the trail at the start
-            trailRenderer.endWidth = 0.1f;      // Width of the trail at the end
-            trailRenderer.material = new Material(Shader.Find("Sprites/Default")); // a material to the trail
-            Gradient gradient = new Gradient(); // Set the trail color over time
-            Color targetColor = Color.grey;
-            gradient.SetKeys(
-                new GradientColorKey[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(targetColor, 0.8f) },
-                new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) }
-            );
-            trailRenderer.colorGradient = gradient;
+    // clouds
+    public GameObject clouds1;
+    private Vector3 cloud1speed = new Vector3(0f, 1f, 0f);
+    public GameObject clouds2;
+    private Vector3 cloud2speed = new Vector3(0f, 0.02f, 0f);
 
-            Vector3 cS = bp[i].body.transform.localScale;
-            bp[i].body.transform.localScale = new Vector3 (cS.x + 0.5f, cS.y + 0.5f, cS.z + 0.5f);
-
-            //bp[i].sp = bp[i].body.AddComponent<SpriteRenderer>();
-            //bp[i].sp.sprite = ds;
-        }
+    void Start() {
+        // for mic input
         StartMic();
-        volume = 0f;
+        // for sound effect
+        audioSource = GetComponent<AudioSource>();
+        // init seed boids
+        seeds = new Seed[n];
+        for (int i = 0; i < n; i++) {
+            seeds[i] = new Seed();
+            seeds[i].body                       = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            seeds[i].body.transform.position    = Random.onUnitSphere * radius;
+            Vector3 tempPosition                = seeds[i].body.transform.position;
+            tempPosition.z                      = tempPosition.z + 100f;
+            seeds[i].body.transform.position    = tempPosition;
+            seeds[i].velocity                   = Vector3.zero;
+            seeds[i].mass                       = myMass;
+            objectRenderer = seeds[i].body.GetComponent<Renderer>();
+            objectRenderer.material = seedmat;
+            addTrail(seeds[i]);
+        }
+        // init stem sway
+        amplitude = (maxAngle - minAngle) / 2f; // 5f
     }
 
+    void Update() {
 
-    void Update(){
-        // Set properties/behavior of all bodies
+        // volume factors
+        volume_raw = getVolume();
+        //volume_0_1 = Mathf.Clamp01(volume_raw);
+        float volume_0_1_approx = volume_raw * (1/0.05f);
+        float volume_0_1_approx_clamped = Mathf.Clamp01(volume_0_1_approx);
 
-        volume = getVolume();
-        volumeVector = new Vector3(volume,volume,volume);
+        // meter
+        float volume_meter = Mathf.Clamp01(volume_0_1_approx_clamped) * 4f;
+        meter.transform.localScale = new Vector3 (0.05f, volume_meter, 1f);
 
-        // Set initial acceleration
-        for (int i = 0; i < numberOfSpheres; i++){
-            bp[i].acceleration = Vector3.zero;
+        // stem sway
+        swayspeed = Mathf.Clamp01(volume_raw * 10f) * 10f;
+        zRotation = (centerAngle + amplitude) * Mathf.Sin(Time.deltaTime * swayspeed);
+        stemObject.transform.rotation = Quaternion.Euler(0f, 0f, zRotation);
+
+        // cloud rotate
+        clouds1.transform.Rotate(cloud1speed * Time.deltaTime);
+        clouds2.transform.Rotate(cloud2speed * Time.deltaTime);
+
+        // dynamic sound effect volume
+        if (audioSource != null) {
+            audioSource.volume = Mathf.Clamp01(volume_0_1_approx) *2f;
         }
-        // Set gravity & acceleration, and enforce Boids behaviors
-        for (int i = 0; i < numberOfSpheres; i++){
-            for (int j = i + 1; j < numberOfSpheres; j++){  // j + 1 because we don't want to do equal pairs or duplicate pairs
-                // Gravity
-                Vector3 distance = bp[i].body.transform.position - bp[j].body.transform.position;
-                Vector3 gravity = CalculateGravity(distance, bp[i].mass, bp[j].mass);
-                // Acceleration
-                bp[i].acceleration -= gravity / bp[i].mass;
-                bp[j].acceleration += gravity / bp[j].mass;
-                // Boids - Separation Property
-                if (distance.magnitude > minimumDistance){
-                    bp[i].acceleration -= separationForce * gravity / bp[i].mass;
-                    bp[j].acceleration -= separationForce * gravity / bp[j].mass;
+
+        // dynamic seed behavior
+        // initial acceleration
+        for (int i = 0; i < n; i++){
+            seeds[i].acceleration = Vector3.zero;
+        }
+        // seed behaviors
+        for (int i = 0; i < n; i++){
+            for (int j = i + 1; j < n; j++) {
+                // gravity
+                Vector3 distance = seeds[i].body.transform.position - seeds[j].body.transform.position;
+                Vector3 gravity = CalculateGravity(distance, seeds[i].mass, seeds[j].mass);
+                // acceleration
+                seeds[i].acceleration -= gravity / seeds[i].mass;
+                seeds[j].acceleration += gravity / seeds[j].mass;
+                // boids - separation
+                if (distance.magnitude > minimumDistance) {
+                    separationForce = 2f;
+                    separationForce = separationForce * (1f + volume_0_1_approx_clamped);
+                    seeds[i].acceleration -= separationForce * gravity / seeds[i].mass;
+                    Vector3 a = seeds[i].acceleration;
+                    seeds[i].acceleration = new Vector3(a.x, a.y, Mathf.Abs(a.z));
+                    seeds[j].acceleration -= separationForce * gravity / seeds[j].mass;
+                    a = seeds[j].acceleration;
+                    seeds[j].acceleration = new Vector3(a.x, a.y, Mathf.Abs(a.z));
                 }
-                // Boids - Cohesion
-                // Boids - Alignment
+                // boids - cohesion
+                // boids - alignment
             }
         }
-        for (int i = 0; i < numberOfSpheres; i++){
-            bp[i].acceleration *= volume * 1.5f;
-            bp[i].velocity += (bp[i].acceleration * Time.deltaTime * fasterTime) * this.volume;             //velocity
 
-            Vector3 currPos = bp[i].body.transform.position;
-            Vector3 posDelta = bp[i].velocity * Time.deltaTime * fasterTime;
-            bp[i].body.transform.position = new Vector3 (currPos.x + posDelta.x, currPos.y + posDelta.y, currPos.z);  //position
-            //bp[i].body.transform.localScale += volumeVector/50f;
+        // seed acceleration & velocity
+        float volume_speed = volume_0_1_approx_clamped / 100f;
+        for (int i = 0; i < n; i++) {
+            seeds[i].acceleration *= volume_speed;
+            seeds[i].velocity += (seeds[i].acceleration * Time.deltaTime) * (1f + volume_speed);
+            Vector3 v = seeds[i].velocity;
+            seeds[i].velocity = new Vector3(v.x, v.y, Mathf.Abs(v.z));
+
+            Vector3 currPos = seeds[i].body.transform.position;
+            Vector3 posDelta = seeds[i].velocity * Time.deltaTime;
+            float upFloat = Random.Range(0f, 0.01f);
+            seeds[i].body.transform.position = new Vector3 (currPos.x + posDelta.x, currPos.y + posDelta.y + upFloat, Mathf.Abs(currPos.z));
+
+            if ((volume_raw) < 0.01f) {
+                //seeds[i].acceleration = Vector3.zero;
+                Vector3 a = seeds[i].acceleration;
+                seeds[i].acceleration = new Vector3(Mathf.Clamp01(a.x)/1.01f, Mathf.Clamp01(a.y)/1.01f, Mathf.Abs(a.z));
+
+                seeds[i].velocity = seeds[i].velocity / 1.05f;
+                Vector3 v2 = seeds[i].velocity;
+                seeds[i].velocity = new Vector3(v2.x, v2.y, Mathf.Abs(v2.z));
+            }
         }
     }
+
+
+
+    // helper functions
 
     private Vector3 CalculateGravity(Vector3 distanceVector, float m1, float m2){
         Vector3 gravity = Vector3.zero;
-        gravity = G * m1 * m2 / (distanceVector.sqrMagnitude + 1f) * distanceVector.normalized; // 1f can help avoid the issue of divergence
+        gravity = G * m1 * m2 / (distanceVector.sqrMagnitude + 1f) * distanceVector.normalized;
         return gravity;
     }
 
@@ -144,5 +190,20 @@ public class Dandelion : MonoBehaviour{
         }
         clip.GetData(samples, micPos);
         return samples.Select(Mathf.Abs).Average(); // average absolute amplitude
+    }
+
+    private void addTrail(Seed seed) {
+        TrailRenderer trailRenderer = seed.body.AddComponent<TrailRenderer>();
+        trailRenderer.time = 1f;         // Duration of the trail
+        trailRenderer.startWidth = 0.5f;    // Width of the trail at the start
+        trailRenderer.endWidth = 0.05f;      // Width of the trail at the end
+        trailRenderer.material = new Material(Shader.Find("Sprites/Default")); // a material to the trail
+        Gradient gradient = new Gradient(); // Set the trail color over time
+        Color targetColor = Color.grey;
+        gradient.SetKeys(
+            new GradientColorKey[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(targetColor, 0.8f) },
+            new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) }
+        );
+        trailRenderer.colorGradient = gradient;
     }
 }
